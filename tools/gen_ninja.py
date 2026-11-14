@@ -1,30 +1,25 @@
 #!/usr/bin/env python3
-"""Build the XAPI runtime from this SDK source tree.
+"""Build the XAPI runtime and the complete XACT CRT from this SDK tree.
 
-Outputs (out/xapi):
+Outputs:
 
-    arch/x86_64/crt0.S.o      _start -> xapi_start
-    <runtime>.cpp.o           libc / POSIX / XAPI wrappers
-    start.cpp.o               general entry: environ -> main -> exit
-    constart.cpp.o            terminal entry: fork + shell.elf terminal mode
-    libxact.a                 core/TUI runtime archive
-    libxgui.a                 GUI client ABI archive
+    out/xapi/        runtime objects + libxact.a + libxgui.a + liballoc.a
+    out/runtime/     include/ + startup objects + libxact.a + libxgui.a
+    out/crt/         complete CRT: include/ + startup objects + runtime + liballoc
 
-It also stages the runtime layout in out/runtime/:
+liballoc comes from the pinned third_party/liballoc submodule when Rust
+nightly/rustup is available; otherwise the vendored prebuilt archive is used
+after SHA-256 verification.  `ninja pack` builds the xact-crt xbps package.
 
-    include/ + lib/x86_64/{crt0.o,start.o,constart.o,libxact.a,libxgui.a}
-
-liballoc is intentionally not part of this repository: it is an input of the
-downstream XACT CRT packaging, which combines this runtime with the official
-allocator.
-
-The source tree does not include third_party media/network code, so this
-build covers the core/TUI runtime.  GUI/audio/network objects from the
-release package can be linked alongside these objects.
-
-Usage: python3 tools/gen_ninja.py && ninja
+Usage:
+    git submodule update --init third_party/liballoc
+    python3 tools/gen_ninja.py
+    ninja            # runtime + CRT layouts
+    ninja pack       # out/xact-crt-2026v5_1.x86_64.xbps
 """
+import hashlib
 import os
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -33,9 +28,29 @@ INC = SRC / "include"
 OUT = ROOT / "out" / "xapi"
 LIBXACT = OUT / "libxact.a"
 LIBXGUI = OUT / "libxgui.a"
+
 RUNTIME_ROOT = ROOT / "out" / "runtime"
 RUNTIME_INC = RUNTIME_ROOT / "include"
 RUNTIME_LIB = RUNTIME_ROOT / "lib" / "x86_64"
+
+CRT = ROOT / "out" / "crt"
+CRT_INC = CRT / "include"
+CRT_LIB = CRT / "lib" / "x86_64"
+
+LIBALLOC_SUBMODULE = ROOT / "third_party" / "liballoc"
+LIBALLOC_FALLBACKS = (
+    ROOT / "vendor" / "liballoc-x86_64.a",
+    ROOT / ".." / "OpenXJ380" / "liballoc-x86_64.a",
+    ROOT / ".." / "XACT-CRT" / "vendor" / "liballoc-x86_64.a",
+)
+LIBALLOC_SHA256 = "2137fa65410bfecc22371769f3557e8f342216254afe67ad72e76117d1446d08"
+LIBALLOC_OBJ = OUT / "liballoc.a"
+
+PKGNAME = "xact-crt"
+PKGVER = "2026v5_1"
+ARCH = "x86_64"
+DESC = "XACT CRT (XJ380 application compile suite runtime)"
+PKG_PREFIX = "system/xact/crt"
 
 RUNTIME = [
     "libsys.cpp", "xtuiapi.cpp", "krlibc.cpp", "string.cpp", "stdlib.cpp",
@@ -46,11 +61,29 @@ RUNTIME = [
     "xapi_xml.cpp", "xime.cpp", "xtext.cpp", "xhighlight.cpp", "launch.cpp",
     "installer_native.cpp",
 ]
-# GUI client ABI stays optional: TUI apps never pull this archive member.
 GUI = ["xguiapi.cpp"]
 CRT0 = "arch/x86_64/crt0.S"
 START = "start.cpp"
 CONSTART = "constart.cpp"
+
+SDK_FILES = ["crt0.o", "start.o", "constart.o", "libxact.a", "libxgui.a"]
+CRT_FILES = SDK_FILES + ["liballoc.a"]
+
+
+def find_liballoc():
+    for candidate in LIBALLOC_FALLBACKS:
+        if candidate.is_file():
+            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            if digest != LIBALLOC_SHA256:
+                raise SystemExit(
+                    f"liballoc checksum mismatch: {candidate}\n"
+                    f"expected {LIBALLOC_SHA256}, got {digest}"
+                )
+            return candidate
+    raise SystemExit(
+        "liballoc fallback not found; provide vendor/liballoc-x86_64.a or "
+        "install rustup + Rust nightly and initialize third_party/liballoc"
+    )
 
 
 def rel(p):
@@ -73,7 +106,13 @@ def main():
     cxx_flags = f"{common} -std=c++11 -I {rel(INC)} -Wno-write-strings -MMD -MP"
     asm_flags = f"{col} -g -m64 -nostdinc"
 
-    L = ["# XJ380 SDK runtime", "ninja_required_version = 1.10",
+    cargo = shutil.which(os.environ.get("CARGO", "cargo"))
+    rustup = shutil.which("rustup")
+    source_liballoc = ((LIBALLOC_SUBMODULE / "Cargo.toml").is_file() and cargo is not None
+                       and rustup is not None and os.environ.get("LIBALLOC_PREBUILT") != "1")
+    liballoc = None if source_liballoc else find_liballoc()
+
+    L = ["# XJ380 SDK runtime + XACT CRT", "ninja_required_version = 1.10",
          f"cc = {cc}", f"cxx = {cxx}", f"ar = {ar}",
          f"cxx_flags = {cxx_flags}", f"asm_flags = {asm_flags}", ""]
     L += [
@@ -88,6 +127,11 @@ def main():
         "  command = mkdir -p $$(dirname $out) && cp $in $out", "",
         "rule copy_dir",
         "  command = rm -rf $out && mkdir -p $$(dirname $out) && cp -a $in $out", "",
+        "rule cargo_liballoc",
+        "  command = mkdir -p $$(dirname $out) && cd third_party/liballoc && "
+        "cargo build --release --target x86_64-unknown-none && "
+        "cp target/x86_64-unknown-none/release/liballoc.a \"../../$out\"",
+        "  restat = 1", "",
     ]
 
     objs = []
@@ -116,9 +160,16 @@ def main():
 
     L += [f"build {esc(LIBXACT)}: archive " + " ".join(esc(o) for o in runtime_objs), ""]
     L += [f"build {esc(LIBXGUI)}: archive " + " ".join(esc(o) for o in gui_objs), ""]
-    objs += [LIBXACT, LIBXGUI]
+    if source_liballoc:
+        L += [f"build {esc(LIBALLOC_OBJ)}: cargo_liballoc | "
+              f"{esc(LIBALLOC_SUBMODULE / 'Cargo.toml')} "
+              f"{esc(LIBALLOC_SUBMODULE / 'Cargo.lock')} "
+              f"{esc(LIBALLOC_SUBMODULE / 'src' / 'lib.rs')}", ""]
+    else:
+        L += [f"build {esc(LIBALLOC_OBJ)}: copy {esc(liballoc)}", ""]
+    objs += [LIBXACT, LIBXGUI, LIBALLOC_OBJ]
 
-    # Runtime layout consumed by XACT CRT packaging.
+    # Runtime layout (no allocator).
     L += [f"build {esc(RUNTIME_INC)}: copy_dir {esc(INC)}", ""]
     runtime_files = {
         "crt0.o": crt0,
@@ -132,11 +183,38 @@ def main():
         objs.append(RUNTIME_LIB / name)
     objs.append(RUNTIME_INC)
 
+    # Complete CRT layout used by downstream components.
+    L += [f"build {esc(CRT_INC)}: copy_dir {esc(INC)}", ""]
+    crt_files = dict(runtime_files)
+    crt_files["liballoc.a"] = LIBALLOC_OBJ
+    for name, source in crt_files.items():
+        L += [f"build {esc(CRT_LIB / name)}: copy {esc(source)}", ""]
+        objs.append(CRT_LIB / name)
+    objs.append(CRT_INC)
+
     L += ["build all: phony " + " ".join(esc(o) for o in objs), "default all", ""]
-    L += ["rule clean", "  command = rm -rf out", "build clean: clean"]
+
+    # ---- xbps: xact-crt ----
+    pkg_out = OUT.parent / f"{PKGNAME}-{PKGVER}.{ARCH}.xbps"
+    args = f"-A {ARCH} -n {PKGNAME}-{PKGVER} -s \"{DESC}\""
+    vendor = ROOT / ".pkg" / PKG_PREFIX
+    cmd = f"rm -rf {esc(ROOT / '.pkg')}"
+    cmd += f" && mkdir -p {esc(vendor / 'lib' / 'x86_64')}"
+    cmd += f" && cp -a {esc(CRT_INC)} {esc(vendor / 'include')}"
+    for name in CRT_FILES:
+        cmd += f" && cp {esc(CRT_LIB / name)} {esc(vendor / 'lib' / 'x86_64' / name)}"
+    cmd += f" && cp {esc(ROOT / 'LICENSE')} {esc(vendor / 'LICENSE')}"
+    cmd += f" && cd {esc(pkg_out.parent)} && xbps-create --compression gzip {args} ../.pkg"
+    L += ["rule package", f"  command = {cmd}", ""]
+    pkg_inputs = [CRT_INC] + [CRT_LIB / n for n in CRT_FILES] + [ROOT / "LICENSE"]
+    L += [f"build {esc(pkg_out)}: package " + " ".join(esc(x) for x in pkg_inputs), ""]
+    L += [f"build pack: phony {esc(pkg_out)}", ""]
+    L += ["rule clean", "  command = rm -rf out .pkg", "build clean: clean"]
 
     (ROOT / "build.ninja").write_text("\n".join(L) + "\n", encoding="utf-8")
-    print(f"已生成 build.ninja（XJ380 SDK runtime，{len(objs)} 个产物）")
+    where = "submodule source" if source_liballoc else f"prebuilt fallback {liballoc}"
+    print(f"已生成 build.ninja（XJ380 SDK runtime + CRT，liballoc: {where}）")
+    print("目标：ninja（runtime/CRT 布局）/ ninja pack（xact-crt xbps）")
 
 
 if __name__ == "__main__":

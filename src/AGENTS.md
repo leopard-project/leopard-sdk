@@ -16,7 +16,7 @@ src/
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |------|----------|-------|
-| Build runtime | `tools/gen_ninja.py` | 产出 `out/xapi/` 对象与 `out/runtime/` 运行时布局。 |
+| Build runtime | `tools/gen_ninja.py` | 产出 `out/xapi/`、`out/runtime/`、`out/crt/` 与 `xact-crt` 包。 |
 | ABI entry | `arch/x86_64/crt0.S` | Low-level `_start` trampoline. |
 | GUI startup | `start.cpp` | Sets `environ`, calls weak `main`. |
 | Console startup | `constart.cpp` | Shell/terminal synchronization. |
@@ -25,10 +25,11 @@ src/
 
 ## CONVENTIONS
 - The generated Ninja graph builds runtime objects plus `start.cpp.o` and `constart.cpp.o`.
-- It also publishes a runtime layout in `out/runtime/`: `include/` plus
-  `lib/x86_64/{crt0.o,start.o,constart.o,libxact.a,libxgui.a}`.
-- `liballoc` is not built here; the downstream XACT CRT packaging combines this
-  runtime with the official allocator.
+- It also publishes `out/runtime/` (runtime without allocator) and
+  `out/crt/` (complete CRT with `liballoc.a`).
+- `liballoc` comes from the pinned `third_party/liballoc` submodule
+  (`plos-clan/liballoc`) when Rust is available, otherwise from the verified
+  `vendor/liballoc-x86_64.a` fallback. `ninja pack` builds `xact-crt`.
 - `libxact.a` is the core/TUI archive; `libxgui.a` holds the GUI client ABI
   (`xguiapi.cpp`) and is only linked by GUI programs.
 - `start.cpp` and `constart.cpp` expose weak C `main` and legacy C++ mangled main fallback.
