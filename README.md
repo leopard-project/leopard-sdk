@@ -1,7 +1,7 @@
 # XJ380 SDK
 本仓库用于存储 XJ380 SDK 的源代码，与 XXCC/XACT 最新版同步，编译好的二进制文件请前往本仓库 Release 页面或 XXCC-suite 仓库或官网获取。
 
-## 构建运行时 / CRT
+## 构建运行时
 
 ```bash
 python3 tools/gen_ninja.py
@@ -18,9 +18,8 @@ ninja
 - `*.cpp.o`：libc / POSIX / XAPI 运行时对象
 - `libxact.a`：核心/TUI 运行时静态库
 - `libxgui.a`：GUI 客户端 ABI（`xguiapi.cpp`），TUI 程序不会拉入
-- `liballoc-x86_64.a`：官方预编译分配器
 
-`out/crt/`（可直接分发/打包的 CRT 布局）：
+`out/runtime/`（供下游 XACT CRT 打包的运行时布局）：
 
 ```
 include/
@@ -30,9 +29,11 @@ lib/x86_64/
     constart.o
     libxact.a
     libxgui.a
-    liballoc.a
 ```
 
+**liballoc 不属于本仓库**：`XJ380-SDK` 只提供运行时，`liballoc` 由下游
+`XACT-CRT` 打包层与 `libxact.a` / `libxgui.a` 组合成完整 CRT，避免上游
+SDK 反向依赖 XACT 产物。
+
 本仓库只包含核心/TUI 运行时源码；GUI/音频/网络对象依赖发行包中的
-third_party 代码，不在本次源码构建范围内。`lib/liballoc-x86_64.a` 的
-来源与校验值见 `lib/README.md`。
+third_party 代码，不在本次源码构建范围内。
