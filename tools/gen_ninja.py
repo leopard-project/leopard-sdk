@@ -38,10 +38,11 @@ CRT_INC = CRT / "include"
 CRT_LIB = CRT / "lib" / "x86_64"
 
 LIBALLOC_SUBMODULE = ROOT / "third_party" / "liballoc"
+# Only upstream sources: the vendored fallback and the OpenXJ380 copy.
+# Never read the archived XACT-CRT checkout or the XACT v5 release tree.
 LIBALLOC_FALLBACKS = (
     ROOT / "vendor" / "liballoc-x86_64.a",
     ROOT / ".." / "OpenXJ380" / "liballoc-x86_64.a",
-    ROOT / ".." / "XACT-CRT" / "vendor" / "liballoc-x86_64.a",
 )
 LIBALLOC_SHA256 = "2137fa65410bfecc22371769f3557e8f342216254afe67ad72e76117d1446d08"
 LIBALLOC_OBJ = OUT / "liballoc.a"
