@@ -60,7 +60,7 @@ RUNTIME = [
     "xcrypto_random.cpp", "poll.cpp", "posix_mman.cpp", "posix_select.cpp",
     "posix_uio.cpp", "xattr.cpp", "xclipboard.cpp", "xanimation.cpp",
     "xapi_xml.cpp", "xime.cpp", "xtext.cpp", "xhighlight.cpp", "launch.cpp",
-    "installer_native.cpp",
+    "installer_native.cpp", "xaudio.cpp", "netdb.cpp", "socket.cpp", "xnet.cpp",
 ]
 GUI = ["xguiapi.cpp"]
 CRT0 = "arch/x86_64/crt0.S"
