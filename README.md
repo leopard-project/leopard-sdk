@@ -20,7 +20,7 @@ ninja
 - `libxgui.a`：GUI 客户端 ABI（`xguiapi.cpp`），TUI 程序不会拉入
 - `liballoc-x86_64.a`：官方预编译分配器
 
-`out/crt/`（Windows CRT 风格，可直接打包/分发）：
+`out/crt/`（可直接分发/打包的 CRT 布局）：
 
 ```
 include/

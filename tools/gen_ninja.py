@@ -131,7 +131,7 @@ def main():
     L += [f"build {esc(LIBALLOC_DST)}: copy {esc(liballoc_src)}", ""]
     objs += [LIBXACT, LIBALLOC_DST]
 
-    # Windows-style CRT layout: include/ + lib/x86_64/{startup,libs}
+    # CRT layout: include/ + lib/x86_64/{startup objects, archives}
     L += [f"build {esc(CRT_INC)}: copy_dir {esc(INC)}", ""]
     crt_libs = {
         "crt0.o": crt0,
