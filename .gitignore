@@ -1,5 +1,4 @@
-obj-tui/
-obj-extra/
+out/
 build.ninja
 .ninja_deps
 .ninja_log
