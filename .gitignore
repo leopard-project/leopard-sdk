@@ -1,0 +1,5 @@
+obj-tui/
+obj-extra/
+build.ninja
+.ninja_deps
+.ninja_log
