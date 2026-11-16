@@ -1,5 +1,8 @@
-# XJ380 SDK
-本仓库用于存储 XJ380 SDK 的源代码，与 XXCC/XACT 最新版同步，编译好的二进制文件请前往本仓库 Release 页面或 XXCC-suite 仓库或官网获取。
+# leopard-sdk
+
+`leopard-sdk` is the SDK / XACT CRT component of LeopardOS: an independent,
+Apache-2.0-derived SDK project. It stores the SDK source and builds the XACT
+runtime and CRT. See `FORK.md` for provenance and attribution.
 
 ## 构建运行时 / CRT / xact-crt 包
 
@@ -7,7 +10,7 @@
 git submodule update --init third_party/liballoc
 python3 tools/gen_ninja.py
 ninja            # out/xapi + out/runtime + out/crt
-ninja pack       # out/xact-crt-2026v5_1.x86_64.xbps
+ninja pack       # out/xact-crt-2026v5_2.x86_64.xbps
 ```
 
 产物：

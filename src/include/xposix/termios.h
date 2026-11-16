@@ -14,7 +14,7 @@
 #include "../stdint.h"
 
 /*
- * This header is the userland mirror of OpenXSKernel include/tty.h. The ioctl
+ * This header is the userland mirror of leopard-xsk include/tty.h. The ioctl
  * requests and the termios layout are part of the user/kernel ABI, so the
  * field order, c_line type and NCCS count must stay in sync with the kernel.
  */

@@ -50,7 +50,7 @@ LIBALLOC_OBJ = OUT / "liballoc.a"
 PKGNAME = "xact-crt"
 PKGVER = "2026v5_2"
 ARCH = "x86_64"
-DESC = "XACT CRT (XJ380 application compile suite runtime)"
+DESC = "XACT CRT (Leopard application compile suite runtime)"
 PKG_PREFIX = "system/xact/crt"
 
 RUNTIME = [
