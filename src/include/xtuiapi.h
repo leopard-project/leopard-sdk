@@ -71,11 +71,14 @@ typedef struct
 } TimeType;
 
 // 3-1
+// Terminal text I/O is userspace libc over fd 0/1, read(2)/write(2) and
+// termios; the kernel does not keep a per-process input line buffer.
 void xapi_Output(WSTR str);
-void xapi_Input(WSTR str);
-// Reads through Enter, keeps spaces, and omits the line ending. The caller
-// must supply at least XAPI_GETLINE_BUFFER_SIZE bytes, including the NUL.
+// Reads one canonical line, keeps spaces, and omits the line ending. Both
+// xapi_Input and xapi_Getline accept at least XAPI_GETLINE_BUFFER_SIZE bytes,
+// including the NUL, and discard the rest of an overlong line.
 #define XAPI_GETLINE_BUFFER_SIZE 1024U
+void xapi_Input(WSTR str);
 void xapi_Getline(WSTR str);
 char xapi_Getch(void);
 void xapi_EndLine(void);

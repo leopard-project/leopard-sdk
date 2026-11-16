@@ -306,6 +306,12 @@ int fgetc(FILE *stream)
     }
 }
 
+int getchar(void)
+{
+    // Standard C buffered input. conio-style single-key input is getch().
+    return fgetc(stdin);
+}
+
 size_t fread(void *buffer, size_t size, size_t count, FILE *stream)
 {
     // C 标准要求返回完整元素数量，不是字节数量；短读时只统计已经读满的元素。

@@ -156,15 +156,8 @@
 #define XAPI_OFFEST 7380
 
 // P3.1
-#define XAPI_OUTPUT    7381
-#define XAPI_INPUT     7382
-
-#define XAPI_GETLINE   7418
-
-#define XAPI_GETCH          7383
-#define XAPI_ENDLINE        7384
-#define XAPI_PRINTLINE      7385
-#define XAPI_PRINTF         7386
+// Text I/O is userspace libc over read(2)/write(2)/ioctl(TCGETS/TCSETS).
+// The retired text syscall numbers are intentionally not reused.
 #define XAPI_OUTPUT_SERIAL  7427
 
 // P3.2

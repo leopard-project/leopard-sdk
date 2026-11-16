@@ -34,7 +34,7 @@ src/
   (`xguiapi.cpp`) and is only linked by GUI programs.
 - `start.cpp` and `constart.cpp` expose weak C `main` and legacy C++ mangled main fallback.
 - Both startup paths set `environ = envp` before app code runs.
-- `constart.cpp` forks and execs `/apps/system/shell.elf` to establish terminal mode, then waits for `SXAH_CHECK_TERMINAL_INIT_STATUS`.
+- `constart.cpp` forks and execs `/apps/system/shell.elf` to establish terminal mode; a process launched on a PTY is already terminal-ready, so it does not poll a terminal status syscall.
 - Headers here are part of the user/kernel contract; coordinate changes with `kernel/syscall/` and `include/syscall/`.
 - Assembly startup marks `.note.GNU-stack`; keep ABI minimal and architecture-specific.
 

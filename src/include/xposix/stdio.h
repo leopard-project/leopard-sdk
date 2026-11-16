@@ -22,7 +22,6 @@ ssize_t write(int fd, const void *buf, size_t len);
 #define SEEK_DATA 3
 #define SEEK_HOLE 4
 #define BUFSIZ   (4096 * 2)
-#define getchar  getch
 
 typedef struct FILE
 {
@@ -58,6 +57,7 @@ long         ftell(FILE *stream);
 FILE        *fopen(const char *filename, const char *mode);
 int          fclose(FILE *fp);
 int          fgetc(FILE *stream);
+int          getchar(void);
 size_t       fread(void *buffer, size_t size, size_t count, FILE *stream);
 size_t       fwrite(const void *buffer, size_t size, size_t count, FILE *stream);
 char        *fgets(char *str, int size, FILE *stream);

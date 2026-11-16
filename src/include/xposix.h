@@ -24,6 +24,7 @@
 #include "./xposix/socket.h"
 #include "./xposix/netdb.h"
 #include "./xposix/time.h"
+#include "./xposix/termios.h"
 #include "./xposix/sys/ioctl.h"
 #include "./xposix/sys/mman.h"
 #include "./xposix/sys/select.h"

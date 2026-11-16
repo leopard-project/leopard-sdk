@@ -21,8 +21,6 @@ extern "C" int xapi_legacy_cpp_main(int argc, char *argv[], char *envp[]) asm("_
 // extern void __fini_array_start();
 // extern void __fini_array_end();
 
-#define SXAH_CHECK_TERMINAL_INIT_STATUS  3801    // 查询终端初始化状态
-
 extern "C" __attribute__((force_align_arg_pointer)) void xapi_start(int argc, char *argv[], char *envp[])
 {
     // 终端启动器同样先挂接 environ，子进程进入 main 前即可读取环境变量。
@@ -53,12 +51,8 @@ extern "C" __attribute__((force_align_arg_pointer)) void xapi_start(int argc, ch
     if (pid == 0)
     {
         // 是子进程！
-        // 等待命令行初始化
-        while (true)
-        {
-            // 这时命令行肯定是他的父进程，循环检查是否标记为命令行，检测到标记即代表可以吃了
-            if (enter_syscall(SXAH_CHECK_TERMINAL_INIT_STATUS, 0, 0, 0, 0, 0, 0)) break;
-        }
+        // The terminal stack launches the child on a ready PTY, so fd 0/1/2
+        // already point at the terminal; no status syscall or busy wait.
         if (main != NULL)
         {
             exit(main(argc, argv, envp));

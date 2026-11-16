@@ -4,6 +4,11 @@
 #include "./include/libsys.h"
 #include "./include/xposix/syscall_ret.h"
 
+extern "C" int uname(struct utsname *buf)
+{
+    return (int)__xposix_ret(enter_syscall(SYS_UNAME, (uint64_t)buf, 0, 0, 0, 0, 0));
+}
+
 extern "C" pid_t fork()
 {
     return (pid_t)__xposix_ret(enter_syscall(SYS_FORK, 0, 0, 0, 0, 0, 0));
@@ -229,14 +234,6 @@ extern "C" int usleep(unsigned long usec)
 {
     struct timespec ts = {(time_t)(usec / 1000000UL), (long)((usec % 1000000UL) * 1000UL)};
     return nanosleep(&ts, NULL);
-}
-
-extern "C" int isatty(int fd)
-{
-    // 早期终端兼容：标准输入/输出/错误视为 tty，其他 fd 先保守返回不是 tty。
-    if (fd >= 0 && fd <= 2) return 1;
-    errno = ENOTTY;
-    return 0;
 }
 
 extern "C" char *ttyname(int fd)

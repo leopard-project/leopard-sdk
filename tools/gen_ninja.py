@@ -15,7 +15,7 @@ Usage:
     git submodule update --init third_party/liballoc
     python3 tools/gen_ninja.py
     ninja            # runtime + CRT layouts
-    ninja pack       # out/xact-crt-2026v5_1.x86_64.xbps
+    ninja pack       # out/xact-crt-2026v5_2.x86_64.xbps
 """
 import hashlib
 import os
@@ -48,14 +48,14 @@ LIBALLOC_SHA256 = "2137fa65410bfecc22371769f3557e8f342216254afe67ad72e76117d1446
 LIBALLOC_OBJ = OUT / "liballoc.a"
 
 PKGNAME = "xact-crt"
-PKGVER = "2026v5_1"
+PKGVER = "2026v5_2"
 ARCH = "x86_64"
 DESC = "XACT CRT (XJ380 application compile suite runtime)"
 PKG_PREFIX = "system/xact/crt"
 
 RUNTIME = [
     "libsys.cpp", "xtuiapi.cpp", "krlibc.cpp", "string.cpp", "stdlib.cpp",
-    "stdio.cpp", "unistd.cpp", "errno.cpp", "posix_ret.cpp", "ctype.cpp",
+    "stdio.cpp", "unistd.cpp", "termios.cpp", "conio.cpp", "errno.cpp", "posix_ret.cpp", "ctype.cpp",
     "permissions.cpp", "posix_fs.cpp", "posix_time.cpp", "posix_ioctl.cpp",
     "xcrypto_random.cpp", "poll.cpp", "posix_mman.cpp", "posix_select.cpp",
     "posix_uio.cpp", "xattr.cpp", "xclipboard.cpp", "xanimation.cpp",

@@ -2,72 +2,151 @@
 #include "./include/xpermissions.h"
 #include "./include/unistd.h"
 #include "./include/libsys.h"
+#include "./include/fcntl.h"
+#include "./include/stdio.h"
+#include "./include/string.h"
 #include "./include/xposix/errno.h"
+#include "./include/xposix/termios.h"
 
 // 3-1
+/*
+ * Text I/O is userspace libc over fd 0/1, read(2)/write(2) and termios.
+ * The kernel only owns the PTY line discipline; it keeps no per-process
+ * input line buffer.
+ */
+
+static int xapi_write_all(int fd, const char *buffer, size_t length)
+{
+    size_t written = 0;
+    while (written < length)
+    {
+        ssize_t result = write(fd, buffer + written, length - written);
+        if (result < 0)
+        {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        if (result == 0) break;
+        written += (size_t)result;
+    }
+    return 0;
+}
+
 extern "C" void xapi_Output(WSTR str) {
-    enter_syscall(XAPI_OUTPUT, (UINT64)(str), 0, 0, 0, 0, 0);
+    if (str == NULL) return;
+    xapi_write_all(1, str, strlen(str));
+}
+
+/*
+ * Canonical line input. The tty line discipline performs editing and echo; we
+ * only stop at '\n', drop the line ending and keep the capacity bounded. Bytes
+ * beyond the capacity are still consumed so an overlong line cannot leak into
+ * the next read call.
+ */
+static void xapi_read_line(WSTR str, size_t capacity)
+{
+    if (str == NULL || capacity == 0) return;
+
+    size_t length = 0;
+    while (true)
+    {
+        char    ch     = 0;
+        ssize_t result = read(0, &ch, 1);
+        if (result < 0)
+        {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (result == 0) break; // EOF, also what /dev/stdio reports
+        if (ch == '\n') break;
+        if (length + 1 < capacity) str[length++] = ch;
+    }
+
+    while (length > 0 && str[length - 1] == '\r') length--;
+    str[length] = '\0';
 }
 
 extern "C" void xapi_Input(WSTR str) {
-    enter_syscall(XAPI_INPUT, (UINT64)(str), 0, 0, 0, 0, 0);
+    xapi_read_line(str, XAPI_GETLINE_BUFFER_SIZE);
 }
 
 extern "C" void xapi_Getline(WSTR str)
 {
-    enter_syscall(XAPI_GETLINE, (UINT64)str, 0, 0, 0, 0, 0);
+    xapi_read_line(str, XAPI_GETLINE_BUFFER_SIZE);
+}
+
+/*
+ * Console fd rule: prefer the inherited stdin when it is already a tty, then
+ * the controlling terminal, then stdin as a last resort. Services without a
+ * controlling terminal therefore never block on opening /dev/tty.
+ */
+static int xapi_console_fd(bool *opened)
+{
+    *opened = false;
+    if (isatty(0)) return 0;
+
+    int fd = open("/dev/tty", O_RDWR);
+    if (fd >= 0)
+    {
+        *opened = true;
+        return fd;
+    }
+    return 0;
 }
 
 extern "C" char xapi_Getch(void) {
-   return (char)(enter_syscall(XAPI_GETCH, 0, 0, 0, 0, 0, 0));
+    bool opened = false;
+    int  fd     = xapi_console_fd(&opened);
+
+    struct termios saved;
+    struct termios raw;
+    bool have_saved = tcgetattr(fd, &saved) == 0;
+    if (have_saved)
+    {
+        raw            = saved;
+        raw.c_lflag   &= ~((uint32_t)(ICANON | ECHO));
+        raw.c_cc[VMIN]  = 1;
+        raw.c_cc[VTIME] = 0;
+        tcsetattr(fd, TCSANOW, &raw);
+    }
+
+    char ch = 0;
+    while (true)
+    {
+        ssize_t result = read(fd, &ch, 1);
+        if (result == 1) break;
+        if (result < 0 && errno == EINTR) continue;
+        ch = 0;
+        break;
+    }
+
+    // Always restore the caller's terminal state, including on read errors.
+    if (have_saved) tcsetattr(fd, TCSANOW, &saved);
+    if (opened) close(fd);
+    return ch;
 }
 
 extern "C" void xapi_EndLine(void) {
-    enter_syscall(XAPI_ENDLINE, 0, 0, 0, 0, 0, 0);
+    xapi_write_all(1, "\n", 1);
 }
 
 extern "C" void xapi_PrintLine(WSTR str) {
-    enter_syscall(XAPI_PRINTLINE, (UINT64)(str), 0, 0, 0, 0, 0);
+    if (str == NULL) return;
+    xapi_write_all(1, str, strlen(str));
+    xapi_write_all(1, "\n", 1);
 }
 
 extern "C" void xapi_OutputSerial(WSTR str) {
     enter_syscall(XAPI_OUTPUT_SERIAL, (UINT64)(str), 0, 0, 0, 0, 0);
 }
 
-#define SERIAL_WRITE_BUFFER_SIZE 1024
-char   serial_write_buffer[SERIAL_WRITE_BUFFER_SIZE] = {0};
-size_t serial_write_buffer_index                     = 0;
-
-uint8_t serial_write_handler(Writer *writer, char ch)
-{
-    (void)writer;
-    serial_write_buffer[serial_write_buffer_index] = ch;
-    ++serial_write_buffer_index;
-    if (serial_write_buffer_index >= SERIAL_WRITE_BUFFER_SIZE - 1) // 1 for '\0'
-    {
-        xapi_Output(serial_write_buffer);
-        serial_write_buffer_index = 0;
-    } // Flush buffer
-    serial_write_buffer[serial_write_buffer_index] = '\0';
-    return 0;
-}
-
-Writer SerialWriter = {
-    .data    = serial_write_buffer,
-    .handler = serial_write_handler,
-};
-
 extern "C" void xapi_Printf(WSTR fmt, ...)
 {
-	va_list args;
+    if (fmt == NULL) return;
+    va_list args;
     va_start(args, fmt);
-    vwprintf(&SerialWriter, fmt, args);
-    // flush buffer
-    if (serial_write_buffer_index > 0)
-    {
-        enter_syscall(XAPI_PRINTF, (UINT64)(serial_write_buffer), 0, 0, 0, 0, 0);
-        serial_write_buffer_index = 0;
-    }
+    vdprintf(1, fmt, args);
+    va_end(args);
 }
 
 // 3-2
